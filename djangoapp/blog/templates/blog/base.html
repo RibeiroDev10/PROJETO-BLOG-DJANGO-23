@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  {% include 'blog/partials/_head.html' %}
+</head>
+<body>
+  <!--Nosso site está dividido entre: CABEÇALHO, PAGINAÇÃO E RODAPÉ-->
+  <h1>{% include 'blog/partials/_header.html' %}</h1>
+  {% block content %}{% endblock content %}
+
+  <h1>{% include 'blog/partials/_pagination.html' %}</h1>
+  <h1>{% include 'blog/partials/_footer.html' %}</h1>
+</body>
+</html>
