@@ -4,6 +4,7 @@
   {% include 'blog/partials/_head.html' %}
 </head>
 <body>
+  <h1>{{ site_setup.title }}</h1>
   <!--Nosso site está dividido entre: CABEÇALHO, PAGINAÇÃO E RODAPÉ-->
   <h1>{% include 'blog/partials/_header.html' %}</h1>
   {% block content %}{% endblock content %}
