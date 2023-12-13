@@ -3,13 +3,14 @@
 <head>
   {% include 'blog/partials/_head.html' %}
 </head>
-<body>
+<body class="dark-theme">
   <h1>{{ site_setup.title }}</h1>
   <!--Nosso site está dividido entre: CABEÇALHO, PAGINAÇÃO E RODAPÉ-->
   <h1>{% include 'blog/partials/_header.html' %}</h1>
   {% block content %}{% endblock content %}
 
   <h1>{% include 'blog/partials/_pagination.html' %}</h1>
+  
   <h1>{% include 'blog/partials/_footer.html' %}</h1>
 </body>
 </html>
