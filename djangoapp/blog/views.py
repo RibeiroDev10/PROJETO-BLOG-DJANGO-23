@@ -7,11 +7,7 @@ posts = list(range(1000))
 def index(request):
     paginator = Paginator(posts, 9)
     page_number = request.GET.get("page")
-    print('PAGE NUMBER: ', page_number)
-    print('PAGE NUMBER: ', page_number)
     page_obj = paginator.get_page(page_number)
-    print('PAGE OBJ: ', page_obj)
-    print('PAGE OBJ: ', page_obj)
     return render(
         request,
         'blog/pages/index.html',
