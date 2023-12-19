@@ -4,6 +4,7 @@ from utils.images import resize_image
 from datetime import datetime
 from django.contrib.auth.models import User
 from django_summernote.models import AbstractAttachment
+from django.urls import reverse
 
 # Create your models here.
 class PostAttachment(AbstractAttachment):
@@ -157,9 +158,20 @@ class Post(models.Model):
     )
     tags = models.ManyToManyField(Tag, blank=True, default='')
 
+    
     def __str__(self):
         return self.title
+    
 
+    def get_absolute_url(self):
+        if not self.is_published:
+            return reverse('blog:index')
+        return reverse('blog:post', args=(self.slug,))
+        # Tudo é parametrado com base no SLUG do objeto criado.
+        # Estamos usando o atributo SLUG do objeto, como se fosse o ID do objeto.
+        # E com isso trazendo dinamicidade na hora de requerir a URL do post único.
+
+    
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify_new(self.title, 4)
