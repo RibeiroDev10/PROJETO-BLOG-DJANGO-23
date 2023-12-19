@@ -101,10 +101,22 @@ class Page(models.Model):
 
 
 
+class PostManager(models.Manager):
+    def get_published(self):  # self representa a instancia dessa classe, no caso: OBJECTS
+        return (
+            self
+            .filter(is_published=True)
+            .order_by('-pk')  # Prevalece o post mais recente.
+        )
+    
+
+
 class Post(models.Model):
     class Meta:
         verbose_name = 'Post'
         verbose_name_plural = 'Posts'
+    
+    objManager = PostManager()
 
     title = models.CharField(max_length=65,)
     slug = models.SlugField(
