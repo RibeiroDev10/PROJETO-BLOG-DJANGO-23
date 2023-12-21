@@ -74,7 +74,6 @@ class Category(models.Model):
         return self.name
     
 
-
 class Page(models.Model):
     class Meta:
         verbose_name = 'Page'
@@ -90,6 +89,11 @@ class Page(models.Model):
         help_text='Este campo precisará estar marcado para a página ser exibida publicamente'
     )
     content = models.TextField()
+
+    def get_absolute_url(self):
+        if not self.is_published:
+            return reverse('blog:index')
+        return reverse('blog:page', args=(self.slug,))
 
     def save(self, *args, **kwargs):
         if not self.title:
