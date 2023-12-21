@@ -151,7 +151,7 @@ def search(request):                # search -> name do input do form
     if len(posts) == 0:
         raise Http404
     
-    post_title = f'{posts[0].title}'
+    post_title = f'{posts[0].title} - '
 
     return render(
         request,
