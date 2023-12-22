@@ -1,13 +1,39 @@
+from typing import Any
+from django.db.models.query import QuerySet
 from django.shortcuts import render
 from django.core.paginator import Paginator
 from blog.models import Post, Page
 from django.db.models import Q
 from django.contrib.auth.models import User
 from django.http import Http404
+from django.views.generic import ListView
+from pprint import pprint
 
 PER_PAGE = 9
 
-# Create your views here.
+class PostListView(ListView):
+    model = Post
+    template_name = 'blog/pages/index.html'
+    context_object_name = 'posts'  # Nome da variável que será acessível no template, lista de objetos
+    ordering = '-pk',  # Primary Key do OBJETO POST
+    paginate_by = PER_PAGE  # Quantos elementos por página
+    queryset = Post.objManager.get_published()
+
+    # def get_queryset(self):
+    #     return self.queryset
+
+    # **kwargs -> deixa explicito que ao CHAMAR esse metódo, PODE SER PASSADO argumentos, ou seja, este método ACEITA argumentos ao ser chamado. 
+    #  Método para mexer no contexto
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)  # super -> chama o método da classe ListView (que está sendo herdada) que obtém os dados do contexto
+        
+        #  Define variáveis (chave) que ficarão acessíveis no template com seus devidos valores (Home - )
+        context.update({
+            'page_title': 'Home - '
+        })
+
+        return context
+
 def index(request):
     posts = Post.objManager.get_published()
     
