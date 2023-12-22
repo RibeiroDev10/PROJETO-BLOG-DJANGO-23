@@ -77,36 +77,46 @@ def category(request, slug):
 
 
 def post(request, slug):  #  Imagine que slug seja -> /post/o-titulo-do-post/
-    post = (
+    post_obj = (
         Post.objManager.get_published()
         .filter(slug=slug)
         .first()
     )
 
+    if post_obj is None:
+        raise Http404
+    
+    post_title = f'{post_obj.title} - Postagem - '
+
     return render(
         request,
         'blog/pages/post.html',
         context = {
-            'post': post,
-            'page_title': 'Home - '
+            'post': post_obj,
+            'page_title': post_title
         }
     )
 
 
 def page(request, slug):
-    page = (
+    page_obj = (
         Page.objects
         .filter(is_published=True)
         .filter(slug=slug)
         .first()
     ) 
 
+    if page_obj is None:
+        raise Http404
+    
+    page_title = f'{page_obj.title} - Página -'
+
     return render(
         request,
         'blog/pages/page.html',
         {
-            'page': page,
-            'page_title': 'Home - '
+            'page': page_obj,
+            'page_title': page_title
         }
     )
 
@@ -151,13 +161,14 @@ def search(request):                # search -> name do input do form
     if len(posts) == 0:
         raise Http404
     
-    post_title = f'{posts[0].title} - '
+    post_title = f'{search_value[:30]} - Search - '
 
     return render(
         request,
         'blog/pages/index.html',
         {
+            'posts': posts,
             'search_value': search_value,
-            'page_title': 'Home - '
+            'page_title': post_title
         }
     )
