@@ -5,19 +5,20 @@ from django.core.paginator import Paginator
 from blog.models import Post, Page
 from django.db.models import Q
 from django.contrib.auth.models import User
-from django.http import Http404
+from django.http import Http404, HttpRequest, HttpResponse
 from django.views.generic import ListView
 from pprint import pprint
 
 PER_PAGE = 9
 
+# Essa classe é a nossa HOME do site
 class PostListView(ListView):
     model = Post
     template_name = 'blog/pages/index.html'
     context_object_name = 'posts'  # Nome da variável que será acessível no template, lista de objetos
     ordering = '-pk',  # Primary Key do OBJETO POST
     paginate_by = PER_PAGE  # Quantos elementos por página
-    queryset = Post.objManager.get_published()
+    queryset = Post.objManager.get_published()  # Traz somente os objetos do POST que estão marcados no is_published
 
     # def get_queryset(self):
     #     return self.queryset
@@ -34,50 +35,79 @@ class PostListView(ListView):
 
         return context
 
-def index(request):
-    posts = Post.objManager.get_published()
-    
-    paginator = Paginator(posts, PER_PAGE)  # Cria uma paginação que divide a lista de OBJ (posts) em páginas, cada uma, contendo até 9 posts.
-    page_number = request.GET.get("page")  # Obtém o número da página a ser exibida
-    page_obj = paginator.get_page(page_number)  # Obtém a página atual
 
-    return render(
-        request,
-        'blog/pages/index.html',
-        {
-            'page_obj': page_obj,
-            'page_title': 'Home - '
-        }
-    )
+class CreatedByListView(PostListView):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._temp_context: dict[str, Any] = {}
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data()  # ctx -> chama o método de contexto da superclass, no caso ListView da classe PostLisView
 
-def created_by(request, author_pk):
-    user = User.objects.filter(pk=author_pk).first()
+        # Como executamoso o DISPATCH e depois o GET(que faz as ações ali embaixo, pegando o usuario no BD com base na author_pk passada como parametro)
+        # aqui então temos acesso à self_temp_context contexto que retorna esses dados do banco de dados(LÓGICA SENDO FEITA NO MÉTODO GET ABAIXO)
+        user = self._temp_context['user']
+        user_full_name = user.username
 
-    if user is None:
-        raise Http404()
+        if user.first_name:
+            user_full_name = f'{user.first_name} {user.last_name}'
+        page_title = 'Posts de ' + user_full_name
 
-    posts = Post.objManager.get_published() \
-            .filter(created_by__pk=author_pk)
-    user_full_name = user.username
-
-    if user.first_name:
-        user_full_name = f'{user.first_name}  {user.last_name}'
-    page_title = ' posts de ' + user_full_name
-
-
-    paginator = Paginator(posts, PER_PAGE)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
-    return render(
-        request,
-        'blog/pages/index.html',
-        {
-            'page_obj': page_obj,
+        # Estamos atualizando a variavel context_object_name da classe PostLisView,
+        # Neste caso, estamos definindo um contexto para essa classe aqui. ( CreatedByListView ). Diferente da classe herdada.
+        # Atualizando o Contexto: ctx.update({'page_title': page_title}) adiciona a variável 'page_title' ao contexto da classe. 
+        # Isso significa que essa variável estará disponível para uso no template associado a CreatedByListView.
+        ctx.update({
             'page_title': page_title
-        }
-    )
+        })
+
+        return ctx
+    
+    # Manipulando a QUERY
+    def get_queryset(self) -> QuerySet[Any]:
+        qs = super().get_queryset()
+        qs = qs.filter(created_by__pk=self._temp_context['user'].pk)
+
+        # Retorna o conjunto de consultas filtrado. 
+        # Isso afetará a renderização dos objetos na sua visualização, 
+        # garantindo que apenas os objetos associados ao usuário atual sejam exibidos.
+        return qs
+
+    #  Nesta classe quando é executada, primeiro executa o método DISPATCH da classe PAI, e logo em seguida o GET
+    #  então definimos este método get abaixo para o código ficar mais performático e escrito melhor.
+    def get(self, request, *args, **kwargs):
+        # self.kwargs -> vem de ListView. get -> pega o parametro da requisição, no caso: created_by/<int:author_pk>
+        # Quando temos uma URL que envia um parametro na requisiçao dela, este parametro é recebido na classe ListView,
+        # ListView temos acesso com self.kwargs pois estamos herdando ela de PostListView.
+        # Com isso obtemos chave-valor do parametro da URL de requisição e temos acesso à esses valores em self.kwargs  
+        author_pk = self.kwargs.get('author_pk')
+        user = User.objects.filter(pk=author_pk).first()
+
+        if user is None:
+            raise Http404()
+        self._temp_context.update({
+            'author_pk': author_pk,  # Retornado pelo get(classe Atual) no kwargs(pegado na classe pai - ListView)
+            'user': user
+        })
+        # print(self._temp_context)
+        # retorno de self._temp_context ----> {'author_pk': 1, 'user': <User: rafael>}
+        # User: É o modelo de usuário no Django, que geralmente representa um usuário no sistema. 
+        # Cada instância desse modelo representa um usuário específico no banco de dados.
+        # rafael: É o valor associado ao campo username desse objeto User. No contexto de um modelo de usuário, 
+        # 'rafael' é o nome de usuário (ou login) desse usuário específico.
+        
+        return super().get(request, *args, **kwargs)
+
+
+class CategoryListView(PostListView):
+    # Permitir vazio? Não(False).
+    # Esse atributo gera automaticamente o erro 404 not found
+    # Quando allow_empty é configurado como False, 
+    # isso significa que a visualização não mostrará uma página se o conjunto de consultas (QuerySet) resultar em uma lista vazia.
+    allow_empty = False
+
+    def get_queryset(self) -> QuerySet[Any]:
+        return super().get_queryset().filter(category__slug=self.kwargs.get('slug'))  # kwargs --> da classe pai, que traz sempre os parametros de URL após a requisição.
 
 
 def category(request, slug):
