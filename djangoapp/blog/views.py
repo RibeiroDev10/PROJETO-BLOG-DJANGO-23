@@ -1,12 +1,12 @@
 from typing import Any
 from django.db.models.query import QuerySet
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.core.paginator import Paginator
 from blog.models import Post, Page
 from django.db.models import Q
 from django.contrib.auth.models import User
 from django.http import Http404, HttpRequest, HttpResponse
-from django.views.generic import ListView
+from django.views.generic import ListView, DetailView
 from pprint import pprint
 
 PER_PAGE = 9
@@ -34,7 +34,6 @@ class PostListView(ListView):
         })
 
         return context
-
 
 class CreatedByListView(PostListView):
     def __init__(self, **kwargs: Any) -> None:
@@ -98,7 +97,6 @@ class CreatedByListView(PostListView):
         
         return super().get(request, *args, **kwargs)
 
-
 class CategoryListView(PostListView):
     # Permitir vazio? Não(False).
     # Esse atributo gera automaticamente o erro 404 not found
@@ -109,122 +107,99 @@ class CategoryListView(PostListView):
     def get_queryset(self) -> QuerySet[Any]:
         return super().get_queryset().filter(category__slug=self.kwargs.get('slug'))  # kwargs --> da classe pai, que traz sempre os parametros de URL após a requisição.
 
-
-def category(request, slug):
-    posts = Post.objManager.get_published() \
-            .filter(category__slug=slug)
-    
-    paginator = Paginator(posts, PER_PAGE)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
-    if len(page_obj) == 0:
-        raise Http404
-    
-    page_title = f'{page_obj[0].category.name} - Categoria - '
-    return render(
-        request,
-        'blog/pages/index.html',
-        {
-            'page_obj': page_obj,
+    # Manipulando o contexto dessa classe -> (CategoryListView)
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        page_title = f'{self.object_list[0].category.name} - Categoria - '  # type: ignore
+        ctx.update({
             'page_title': page_title
-        }
-    )
+        })
+        return ctx
 
+class PageDetailView(DetailView):
+    template_name = 'blog/pages/page.html'  # Template para onde tudo aqui nessa classe será redirecionado
+    model = Page
+    slug_field = 'slug'
+    context_object_name = 'page'  # Onde busca os dados da página
 
-def post(request, slug):  #  Imagine que slug seja -> /post/o-titulo-do-post/
-    post_obj = (
-        Post.objManager.get_published()
-        .filter(slug=slug)
-        .first()
-    )
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        ctx = super().get_context_data(**kwargs)
+        page = self.get_object()
+        page_title = f'{page.title} - Página -' # type: ignore
 
-    if post_obj is None:
-        raise Http404
+        ctx.update({
+            'page_title': page_title
+        })
+        return ctx
     
-    post_title = f'{post_obj.title} - Postagem - '
+    def get_queryset(self) -> QuerySet[Any]:
+        return super().get_queryset().filter(is_published=True)
+    
+class PostDetailView(PageDetailView):
+    template_name = 'blog/pages/post.html'  # Template para onde tudo aqui nessa classe será redirecionado
+    model = Post
+    slug_field = 'slug'
+    context_object_name = 'post'  # Onde busca os dados da página
 
-    return render(
-        request,
-        'blog/pages/post.html',
-        context = {
-            'post': post_obj,
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        ctx = super().get_context_data(**kwargs)
+        post = self.get_object()
+        post_title = f'{post.title} - Post -' # type: ignore
+
+        ctx.update({
             'page_title': post_title
-        }
-    )
-
-
-def page(request, slug):
-    page_obj = (
-        Page.objects
-        .filter(is_published=True)
-        .filter(slug=slug)
-        .first()
-    ) 
-
-    if page_obj is None:
-        raise Http404
+        })
+        return ctx
     
-    page_title = f'{page_obj.title} - Página -'
+    def get_queryset(self) -> QuerySet[Any]:
+        return super().get_queryset().filter(is_published=True)
 
-    return render(
-        request,
-        'blog/pages/page.html',
-        {
-            'page': page_obj,
+class TagListView(PostListView):
+    allow_empty = False
+
+    # Sua principal responsabilidade é retornar um conjunto de consultas (QuerySet) que representa os objetos a serem exibidos na página.
+    def get_queryset(self) -> QuerySet[Any]:
+        return super().get_queryset().filter(tags__slug=self.kwargs.get("slug"))
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        page_title = f'{self.object_list[0].tags.first().name} - Tag - '  # type: ignore
+
+        ctx.update({
             'page_title': page_title
-        }
-    )
+        })
 
+        return ctx
 
-def tag(request, slug):
-    posts = Post.objManager.get_published() \
-            .filter(tags__slug=slug)
+class SearchListView(PostListView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)  # Sempre quando estou herdando de uma classe, tenho que chamar o INIT da classe herdada também
+        self._search_value = ''
+
+    # Sobrescrevendo o método setup
+    # Retorno o setup da classe PAI, para realmente executar o setup esperado, depois de fazer o meu setup especifico.
+    # Fazemos o nosso setup sobrescrevendo o método padrão do DJANGO, e logo em seguida chamamos o método padrão para executar com sucesso o setup.
+    def setup(self, request, *args, **kwargs):
+        self._search_value = request.GET.get("search", '').strip()
+        return super().setup(request, *args, **kwargs)
     
-    paginator = Paginator(posts, PER_PAGE)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-    # print()
-    # print()
-    # print("PAGE OBJ ::: ", page_obj[1].tags.first().name)
-
-    if len(page_obj) == 0:
-        raise Http404
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset().filter(
+            Q(title__icontains=self._search_value),
+            Q(excerpt__icontains=self._search_value),
+            Q(content__icontains=self._search_value),
+        )[:PER_PAGE]
     
-                # page_obj, acesso aos posts(OBJETOS do BD), e também às páginas que contém os POSTS
-                # os indices indicam os POSTS(objetos do BD)
-    page_title = f'{page_obj[0].tags.first().name } - Tag -'
-
-    return render(
-        request,
-        'blog/pages/index.html',
-        {
-            'page_obj': page_obj,
-            'page_title': page_title
-        }
-    )
-
-
-def search(request):                # search -> name do input do form
-    search_value = request.GET.get("search", '').strip()  # strip -> remove os espaços do inicio e fim.
-    posts = Post.objManager.get_published() \
-            .filter(
-                Q(title__icontains=search_value) |
-                Q(excerpt__icontains=search_value) |
-                Q(content__icontains=search_value)
-            )[:PER_PAGE]
-
-    if len(posts) == 0:
-        raise Http404
+    def get_context_data(self, *args, **kwargs):
+        ctx = super().get_context_data()
+        ctx.update({
+            'page_title': f'{self._search_value[:30]} - Search -',
+            'search_value': self._search_value
+        })
+        return ctx
     
-    post_title = f'{search_value[:30]} - Search - '
-
-    return render(
-        request,
-        'blog/pages/index.html',
-        {
-            'posts': posts,
-            'search_value': search_value,
-            'page_title': post_title
-        }
-    )
+    # Método que retorna uma Http Response
+    def get(self, request, *args, **kwargs):
+        if self._search_value == '':
+            return redirect('blog:index')
+        return super().get(request, *args, **kwargs)
